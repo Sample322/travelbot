@@ -2,7 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import { ENV } from './env';
 import { PrismaClient } from '@prisma/client';
-import { makeOpenAI } from './ai';
+import { makeLLM } from './ai';
+export const openai = makeLLM(); // теперь клиент берётся из ENV OpenRouter
+
 
 // Route modules
 import authRoutes from './routes/auth';
@@ -22,7 +24,6 @@ import favoritesRoutes from './routes/favorites';
  */
 
 export const prisma = new PrismaClient();
-export const openai = makeOpenAI(ENV.OPENAI_API_KEY);
 
 const app = express();
 
