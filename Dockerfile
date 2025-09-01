@@ -12,7 +12,6 @@ WORKDIR /app
 COPY server/package*.json ./server/
 RUN cd server && npm install
 COPY server ./server
-# Обязательно копируем prisma/migrations в образ, иначе migratations не применятся
 RUN cd server && npm run build && npx prisma generate
 
 # Stage 3: runtime
@@ -23,10 +22,8 @@ ENV NODE_ENV=production
 COPY --from=server-build /app/server /app/server
 COPY --from=client /app/client/dist /app/server/dist_client
 
-# Стартовый скрипт
 COPY server/docker-entrypoint.sh /app/server/docker-entrypoint.sh
 RUN chmod +x /app/server/docker-entrypoint.sh
 
 EXPOSE 3000
-
 CMD ["sh", "-c", "cd server && ./docker-entrypoint.sh"]

@@ -13,18 +13,17 @@ import favoritesRoutes from './routes/favorites';
 
 const app = express();
 
-// поднимаем Prisma и AI (LLM)
+// Инстансы Prisma и LLM
 export const prisma = new PrismaClient();
 export const openai = makeLLM();
 
-// middleware
 app.use(cors());
 app.use(express.json());
 
-// health-check
+// Health‑check
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
-// API endpoints
+// Роуты API
 app.use('/auth', authRoutes);
 app.use('/profile', profileRoutes);
 app.use('/geo', geoRoutes);
@@ -32,12 +31,12 @@ app.use('/route', routeRoutes);
 app.use('/plan', planRoutes);
 app.use('/favorites', favoritesRoutes);
 
-// раздача статических файлов клиента
+// Раздача статических файлов клиента
 import path from 'path';
 const staticDir = path.join(__dirname, '..', 'dist_client');
 app.use(express.static(staticDir));
 app.get('*', (_req, res) => res.sendFile(path.join(staticDir, 'index.html')));
 
-app.listen(ENV.PORT, () =>
-  console.log(`Server running on port ${ENV.PORT}`),
-);
+app.listen(ENV.PORT, () => {
+  console.log(`Server running on port ${ENV.PORT}`);
+});
