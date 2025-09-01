@@ -2,7 +2,7 @@
 FROM node:20-alpine AS client
 WORKDIR /app
 COPY client/package*.json ./client/
-RUN cd client && npm ci
+RUN cd client && npm install
 COPY client ./client
 RUN cd client && npm run build
 
@@ -11,7 +11,7 @@ FROM node:20-alpine AS server-build
 WORKDIR /app
 # Установим зависимости сервера (включая prisma и @prisma/client)
 COPY server/package*.json ./server/
-RUN cd server && npm ci
+RUN cd server && npm install
 
 # Скопируем исходники сервера и prisma (ОБЯЗАТЕЛЬНО migrations!)
 COPY server ./server
