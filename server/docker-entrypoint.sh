@@ -1,14 +1,13 @@
 #!/usr/bin/env sh
 set -e
 
-# Проверка наличия DATABASE_URL (нужен на рантайме, не на билде)
 if [ -z "$DATABASE_URL" ]; then
   echo "ERROR: DATABASE_URL is not set"
   exit 1
 fi
 
-# Применяем миграции перед стартом сервера
+# Выполняем миграции из prisma/migrations (deploy) на рантайме
 npx prisma migrate deploy
 
-# Запуск Node-сервера
+# Запускаем собранный сервер
 node dist/index.js

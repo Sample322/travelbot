@@ -1,55 +1,90 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { prisma, openai } from '../index';
-import { ENV } from '../env';
-import { generateRouteJSON } from '../ai';
 import { geocodePlaceInCity, haversineKm } from '../geo';
+import { generateRouteJSON } from '../ai';
+import { ENV } from '../env';
 
-/**
- * Route generation endpoint. Accepts user input including city,
- * profile preferences and trip context, calls the AI to generate a
- * route, geocodes each place for coordinates and addresses,
- * calculates total distance between consecutive points, saves the
- * route to the database and returns it to the client. If AI is
- * unavailable (no API key), the response will contain a static
- * mock route defined in ai.ts.
- */
 const router = Router();
 
-router.post('/', async (req, res) => {
-  const uid = req.headers['x-user-id'];
-  if (!uid) return res.status(400).json({ error: 'x-user-id header required' });
-  const userId = BigInt(String(uid));
-  const { city, country, time, profile, hunger, transport, withKids, language } = req.body as any;
+/**
+ * POST /route
+ * Принимает данные (город, время, предпочтения и т.д.), вызывает AI для генерации маршрута,
+ * геокодирует каждое место (добавляет coords/address), вычисляет расстояние и сохраняет в БД.
+ */
+router.post('/', async (req: Request, res: Response) => {
+  const userIdHeader = req.headers['x-user-id'];
+  const userId = userIdHeader ? BigInt(String(userIdHeader)) : null;
+  if (!userId) return res.status(400).json({ error: 'Missing user id' });
+
+  const {
+    city,
+    country,
+    time,
+    profile,
+    hunger,
+    transport,
+    withKids,
+    language,
+  } = req.body as {
+    city: string;
+    country?: string;
+    time: string;
+    profile: any;
+    hunger: string;
+    transport: string;
+    withKids: boolean;
+    language: 'ru' | 'en';
+  };
+
   try {
-    // Use the AI to generate a base route (without coordinates).
-    const baseRoute = await generateRouteJSON(openai, { city, time, profile, hunger, transport, withKids, language });
-    // Geocode each place within the city to get coordinates and
-    // addresses. Also compute the cumulative distance.
-    const placesWithCoords: any[] = [];
+    // генерируем маршрут через LLM
+    let route = await generateRouteJSON({
+      city,
+      time,
+      profile,
+      hunger,
+      transport,
+      withKids,
+      language,
+    });
+
+    // геокодируем места (добавляем coords, address) и считаем расстояние
     let totalKm = 0;
-    let prevPoint: { lat: number; lng: number } | null = null;
-    for (const place of baseRoute.places) {
-      const geo = await geocodePlaceInCity(place.name, city, ENV.YANDEX_KEY);
-      const coords = geo ? { lat: geo.lat, lng: geo.lng } : null;
-      const address = geo?.address ?? null;
-      placesWithCoords.push({ ...place, coords, address });
-      if (prevPoint && coords) {
-        totalKm += haversineKm(prevPoint, coords);
+    let prev: { lat: number; lng: number } | null = null;
+    const places = [];
+    for (const p of route.places || []) {
+      const geo = await geocodePlaceInCity(p.name, city, ENV.YANDEX_KEY);
+      const place = {
+        ...p,
+        coords: geo ? { lat: geo.lat, lng: geo.lng } : null,
+        address: geo?.address ?? null,
+      };
+      places.push(place);
+      if (prev && geo) {
+        totalKm += haversineKm(prev, { lat: geo.lat, lng: geo.lng });
       }
-      if (coords) prevPoint = coords;
+      if (geo) prev = { lat: geo.lat, lng: geo.lng };
     }
-    // Assign computed values back into the route JSON.
-    const routeJson = {
-      ...baseRoute,
-      places: placesWithCoords,
-      totalDistance: baseRoute.totalDistance ?? `${totalKm.toFixed(1)} km`
-    };
-    // Persist the route in the database for history and offline
-    // retrieval. Use the JSON type for efficient storage.
-    await prisma.route.create({ data: { userId, city, country: country ?? null, language, routeJson } });
-    return res.json({ ok: true, route: routeJson });
+    route.places = places;
+    // если AI не вернул расстояние — подставляем
+    if (!route.totalDistance) {
+      route.totalDistance = `${totalKm.toFixed(1)} km`;
+    }
+
+    // сохраняем в БД
+    const saved = await prisma.route.create({
+      data: {
+        userId,
+        city,
+        country: country ?? null,
+        language,
+        routeJson: route as any,
+      },
+    });
+
+    res.json({ ok: true, route: saved.routeJson });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    res.status(400).json({ ok: false, error: err?.message || 'AI error' });
   }
 });
 

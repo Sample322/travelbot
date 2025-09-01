@@ -1,50 +1,55 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { prisma } from '../index';
 
-/**
- * Profile routes. Allow the client to fetch and update the user's
- * travel preferences. The user ID is supplied via the
- * `x-user-id` header, which should correspond to the Telegram ID
- * verified during `/auth/verify`. Preferences are stored in the
- * Profile model as JSON strings for food and activities. If no
- * profile exists, GET returns null. POST will create or update
- * the profile.
- */
 const router = Router();
 
-// Fetch the current user's profile. Returns null if not set.
-router.get('/', async (req, res) => {
-  const uid = req.headers['x-user-id'];
-  if (!uid) return res.status(400).json({ error: 'x-user-id header required' });
-  const userId = BigInt(String(uid));
+/**
+ * GET /profile
+ * Возвращает профиль пользователя (предпочтения).
+ */
+router.get('/', async (req: Request, res: Response) => {
+  const userIdHeader = req.headers['x-user-id'];
+  const userId = userIdHeader ? BigInt(String(userIdHeader)) : null;
+  if (!userId) return res.status(400).json({ error: 'Missing user id' });
+
   const profile = await prisma.profile.findUnique({ where: { userId } });
-  return res.json(profile);
+  res.json(profile ?? null);
 });
 
-// Create or update the user's profile. Expects JSON body with
-// `food`, `activities`, `dailyBudget` and `travelStyle` fields.
-router.post('/', async (req, res) => {
-  const uid = req.headers['x-user-id'];
-  if (!uid) return res.status(400).json({ error: 'x-user-id header required' });
-  const userId = BigInt(String(uid));
-  const { food, activities, dailyBudget, travelStyle } = req.body;
+/**
+ * POST /profile
+ * Сохраняет или обновляет профиль пользователя.
+ * Body: { food: string[], activities: string[], dailyBudget: string, travelStyle: string }
+ */
+router.post('/', async (req: Request, res: Response) => {
+  const userIdHeader = req.headers['x-user-id'];
+  const userId = userIdHeader ? BigInt(String(userIdHeader)) : null;
+  if (!userId) return res.status(400).json({ error: 'Missing user id' });
+
+  const { food, activities, dailyBudget, travelStyle } = req.body as {
+    food?: string[];
+    activities?: string[];
+    dailyBudget?: string;
+    travelStyle?: string;
+  };
+
   const profile = await prisma.profile.upsert({
     where: { userId },
-    update: {
-      food: food != null ? JSON.stringify(food) : undefined,
-      activities: activities != null ? JSON.stringify(activities) : undefined,
-      dailyBudget: dailyBudget ?? undefined,
-      travelStyle: travelStyle ?? undefined
-    },
     create: {
       userId,
-      food: food != null ? JSON.stringify(food) : undefined,
-      activities: activities != null ? JSON.stringify(activities) : undefined,
-      dailyBudget: dailyBudget ?? undefined,
-      travelStyle: travelStyle ?? undefined
-    }
+      food: JSON.stringify(food ?? []),
+      activities: JSON.stringify(activities ?? []),
+      dailyBudget: dailyBudget ?? null,
+      travelStyle: travelStyle ?? null,
+    },
+    update: {
+      food: JSON.stringify(food ?? []),
+      activities: JSON.stringify(activities ?? []),
+      dailyBudget: dailyBudget ?? null,
+      travelStyle: travelStyle ?? null,
+    },
   });
-  return res.json(profile);
+  res.json(profile);
 });
 
 export default router;

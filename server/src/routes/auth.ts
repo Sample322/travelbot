@@ -1,27 +1,24 @@
-import { Router } from 'express';
-import { verifyInitData } from '../telegram';
+import { Router, Request, Response } from 'express';
 import { ENV } from '../env';
 import { prisma } from '../index';
+import { verifyAndParseInitData } from '../telegram';
 
-/**
- * Authentication routes. The `/verify` endpoint accepts a raw
- * `initData` string from the Telegram WebApp and verifies its
- * authenticity using the bot token. On success it creates or
- * updates the user in the database. The client should call this
- * endpoint immediately after the WebApp is opened to establish a
- * server‑side session. See the Telegram Mini Apps docs for more
- * details on initData verification【350668147173360†screenshot】.
- */
 const router = Router();
 
-router.post('/verify', async (req, res) => {
-  const { initData } = req.body as { initData?: string };
-  if (!initData) return res.status(400).json({ ok: false, error: 'initData required' });
+/**
+ * POST /auth/verify
+ * Body: { initData: string }
+ * Валидируем подпись, парсим user и создаём/обновляем пользователя в БД.
+ */
+router.post('/verify', async (req: Request, res: Response) => {
+  const { initData } = req.body as { initData: string };
   try {
-    const parsed = verifyInitData(initData, ENV.BOT_TOKEN);
+    const parsed = verifyAndParseInitData(initData, ENV.BOT_TOKEN);
     const tgUser = parsed.user;
-    // Upsert the user based on Telegram ID. Use BigInt conversion
-    // because Prisma stores BigInt fields as native BigInt in JS.
+    if (!tgUser) {
+      return res.status(400).json({ ok: false, error: 'No user in initData' });
+    }
+
     const user = await prisma.user.upsert({
       where: { id: BigInt(tgUser.id) },
       create: {
@@ -36,9 +33,10 @@ router.post('/verify', async (req, res) => {
         language: tgUser.language_code ?? null
       }
     });
-    return res.json({ ok: true, user });
+
+    res.json({ ok: true, user });
   } catch (err: any) {
-    return res.status(401).json({ ok: false, error: err.message });
+    res.status(401).json({ ok: false, error: err?.message || 'Invalid initData' });
   }
 });
 

@@ -1,28 +1,29 @@
 {
   "name": "travelbot-server",
-  "version": "0.1.0",
-  "description": "Backend for TravelBot Telegram WebApp",
+  "version": "1.0.0",
   "main": "dist/index.js",
+  "type": "commonjs",
   "scripts": {
     "build": "tsc",
-    "dev": "ts-node src/index.ts",
     "start": "node dist/index.js",
-    "generate": "prisma generate",
-    "migrate": "prisma migrate dev"
+    "dev": "nodemon --watch src --exec ts-node src/index.ts",
+    "generate": "prisma generate"
   },
   "dependencies": {
-    "@prisma/client": "latest",
-    "@telegram-apps/init-data-node": "latest",
-    "cors": "latest",
-    "dotenv": "latest",
-    "express": "latest",
-    "openai": "latest",
-    "ky": "0.33.0",
-    "zod": "latest"
+    "@prisma/client": "^5.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "ky": "^1.0.0",
+    "openai": "^4.20.0"
   },
   "devDependencies": {
-    "prisma": "latest",
-    "ts-node": "latest",
-    "typescript": "latest"
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.23",
+    "@types/node": "^20.5.7",
+    "nodemon": "^2.0.22",
+    "prisma": "^5.1.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
   }
 }
